@@ -2,6 +2,8 @@ const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 
 exports.handler = async (event, context) => {
+  console.log('Function invoked with event:', JSON.stringify(event, null, 2));
+  
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -11,6 +13,7 @@ exports.handler = async (event, context) => {
 
   // Handle preflight OPTIONS request
   if (event.httpMethod === 'OPTIONS') {
+    console.log('Handling OPTIONS request');
     return {
       statusCode: 200,
       headers,
@@ -23,12 +26,15 @@ exports.handler = async (event, context) => {
     let target;
     if (event.httpMethod === 'GET') {
       target = event.queryStringParameters?.target;
+      console.log('GET request with target:', target);
     } else if (event.httpMethod === 'POST') {
       const body = JSON.parse(event.body || '{}');
       target = body.target;
+      console.log('POST request with target:', target);
     }
 
     if (!target) {
+      console.log('No target URL provided');
       return {
         statusCode: 400,
         headers: { ...headers, 'Content-Type': 'application/json' },
@@ -44,7 +50,9 @@ exports.handler = async (event, context) => {
     let targetUrl;
     try {
       targetUrl = new URL(target);
+      console.log('Validated target URL:', targetUrl.href);
     } catch (error) {
+      console.log('Invalid URL format:', target);
       return {
         statusCode: 400,
         headers: { ...headers, 'Content-Type': 'application/json' },
@@ -61,6 +69,8 @@ exports.handler = async (event, context) => {
     // Try to launch browser with fallback options
     let browser;
     try {
+      console.log('Attempting to launch browser with @sparticuz/chromium...');
+      
       // First attempt: Use @sparticuz/chromium
       browser = await puppeteer.launch({
         args: [
@@ -84,9 +94,10 @@ exports.handler = async (event, context) => {
         ignoreHTTPSErrors: true,
         timeout: 30000,
       });
-      console.log('Browser launched with @sparticuz/chromium');
+      console.log('Browser launched successfully with @sparticuz/chromium');
     } catch (chromiumError) {
-      console.log('Chromium launch failed, trying system Chrome...');
+      console.log('Chromium launch failed:', chromiumError.message);
+      console.log('Trying system Chrome fallback...');
       
       // Fallback: Try to use system Chrome
       try {
@@ -108,7 +119,7 @@ exports.handler = async (event, context) => {
           ignoreHTTPSErrors: true,
           timeout: 30000,
         });
-        console.log('Browser launched with system Chrome');
+        console.log('Browser launched successfully with system Chrome');
       } catch (systemError) {
         console.error('Both Chromium and system Chrome failed:', systemError.message);
         
@@ -128,10 +139,12 @@ exports.handler = async (event, context) => {
     }
 
     const page = await browser.newPage();
+    console.log('New page created');
 
     try {
       // Set a realistic user agent
       await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      console.log('User agent set');
 
       // Block unnecessary resources to speed up loading
       await page.setRequestInterception(true);
@@ -166,6 +179,7 @@ exports.handler = async (event, context) => {
       }
 
       // Wait for images to load
+      console.log('Waiting for images to load...');
       await page.evaluate(() => {
         return Promise.all(
           Array.from(document.images)
@@ -177,6 +191,7 @@ exports.handler = async (event, context) => {
       });
 
       // Wait for fonts
+      console.log('Waiting for fonts to load...');
       await page.evaluate(() => {
         if (document.fonts && document.fonts.ready) {
           return document.fonts.ready;
@@ -185,12 +200,15 @@ exports.handler = async (event, context) => {
       });
 
       // Wait for dynamic content (important for Webflow)
+      console.log('Waiting for dynamic content...');
       await page.waitForTimeout(3000);
 
       // Check if page has content
       const contentLength = await page.evaluate(() => {
         return document.body.textContent.length;
       });
+
+      console.log(`Page content length: ${contentLength} characters`);
 
       if (contentLength < 100) {
         throw new Error('Page appears to be empty or blocked');
@@ -227,11 +245,13 @@ exports.handler = async (event, context) => {
             .toLowerCase()
             .substring(0, 50);
         }
+        console.log('Extracted filename:', filename);
       } catch (error) {
         console.warn('Could not extract title:', error.message);
       }
 
       await browser.close();
+      console.log('Browser closed successfully');
 
       return {
         statusCode: 200,
@@ -272,7 +292,8 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         error: 'Internal server error',
         message: 'An unexpected error occurred',
-        details: error.message
+        details: error.message,
+        stack: error.stack
       })
     };
   }

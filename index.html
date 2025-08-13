@@ -149,6 +149,18 @@
             color: #495057;
             margin: 10px 0;
         }
+        .debug-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 12px;
+            color: #856404;
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -187,6 +199,11 @@
         </div>
         
         <div id="status"></div>
+        
+        <div id="debugInfo" class="debug-info" style="display: none;">
+            <strong>Debug Information:</strong><br>
+            <div id="debugContent"></div>
+        </div>
     </div>
 
     <script>
@@ -198,6 +215,17 @@
         function clearStatus() {
             const statusDiv = document.getElementById('status');
             statusDiv.innerHTML = '';
+        }
+
+        function showDebugInfo(info) {
+            const debugDiv = document.getElementById('debugInfo');
+            const debugContent = document.getElementById('debugContent');
+            debugContent.innerHTML = info;
+            debugDiv.style.display = 'block';
+        }
+
+        function hideDebugInfo() {
+            document.getElementById('debugInfo').style.display = 'none';
         }
 
         function showProgress(show = true) {
@@ -241,17 +269,48 @@
             try {
                 showStatus('Testing function connection...', 'loading');
                 showProgress(true);
+                hideDebugInfo();
                 
-                const response = await fetch(`/.netlify/functions/generate-pdf-simple?target=${encodeURIComponent(url)}`);
+                const functionUrl = `/.netlify/functions/generate-pdf-simple?target=${encodeURIComponent(url)}`;
+                console.log('Testing function URL:', functionUrl);
+                
+                const response = await fetch(functionUrl);
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                let responseText = '';
+                try {
+                    responseText = await response.text();
+                    console.log('Response text:', responseText);
+                } catch (textError) {
+                    console.log('Could not read response as text:', textError);
+                }
                 
                 if (response.ok) {
-                    showStatus('✅ Function is working! PDF generation successful.', 'success');
+                    try {
+                        const responseData = JSON.parse(responseText);
+                        showStatus('✅ Function is working! PDF generation successful.', 'success');
+                        showDebugInfo(`Function Response: ${JSON.stringify(responseData, null, 2)}`);
+                    } catch (parseError) {
+                        showStatus('⚠️ Function responded but with invalid JSON. Check debug info.', 'error');
+                        showDebugInfo(`Response Status: ${response.status}\nResponse Text: ${responseText}\nParse Error: ${parseError.message}`);
+                    }
                 } else {
-                    const errorData = await response.json();
-                    showStatus(`❌ Function test failed: ${errorData.message || 'Unknown error'}`, 'error');
+                    let errorMessage = `Function test failed with status ${response.status}`;
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage += `: ${errorData.message || 'Unknown error'}`;
+                        showDebugInfo(`Error Response: ${JSON.stringify(errorData, null, 2)}`);
+                    } catch (parseError) {
+                        errorMessage += `\nResponse: ${responseText}`;
+                        showDebugInfo(`Error Status: ${response.status}\nResponse Text: ${responseText}\nParse Error: ${parseError.message}`);
+                    }
+                    showStatus(`❌ ${errorMessage}`, 'error');
                 }
             } catch (error) {
+                console.error('Test function error:', error);
                 showStatus(`❌ Connection error: ${error.message}`, 'error');
+                showDebugInfo(`Connection Error: ${error.message}\nStack: ${error.stack}`);
             } finally {
                 showProgress(false);
             }
@@ -267,38 +326,76 @@
             try {
                 showStatus('🚀 Starting PDF generation... This may take 1-2 minutes for Webflow sites.', 'loading');
                 showProgress(true);
+                hideDebugInfo();
+                
+                const functionUrl = `/.netlify/functions/generate-pdf-simple?target=${encodeURIComponent(url)}`;
+                console.log('Generating PDF with URL:', functionUrl);
                 
                 // Call the Netlify function
-                const response = await fetch(`/.netlify/functions/generate-pdf-simple?target=${encodeURIComponent(url)}`);
+                const response = await fetch(functionUrl);
+                console.log('Response status:', response.status);
                 
                 if (response.ok) {
-                    // Get the PDF blob
-                    const pdfBlob = await response.blob();
+                    // Check if response is PDF
+                    const contentType = response.headers.get('content-type');
+                    console.log('Response content type:', contentType);
                     
-                    // Create download link
-                    const downloadUrl = window.URL.createObjectURL(pdfBlob);
-                    const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = 'webflow-blog-post.pdf';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(downloadUrl);
-                    
-                    showStatus('🎉 PDF generated successfully! Download started.', 'success');
+                    if (contentType && contentType.includes('application/pdf')) {
+                        // Get the PDF blob and download
+                        const pdfBlob = await response.blob();
+                        console.log('PDF blob size:', pdfBlob.size);
+                        
+                        // Create download link
+                        const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                        const link = document.createElement('a');
+                        link.href = downloadUrl;
+                        link.download = 'webflow-blog-post.pdf';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(downloadUrl);
+                        
+                        showStatus('🎉 PDF generated successfully! Download started.', 'success');
+                    } else {
+                        // Response is not PDF, might be JSON error
+                        const responseText = await response.text();
+                        try {
+                            const errorData = JSON.parse(responseText);
+                            showStatus(`❌ Error: ${errorData.message || 'Unknown error'}`, 'error');
+                            showDebugInfo(`Error Response: ${JSON.stringify(errorData, null, 2)}`);
+                        } catch (parseError) {
+                            showStatus(`❌ Unexpected response format: ${contentType}`, 'error');
+                            showDebugInfo(`Response Status: ${response.status}\nContent Type: ${contentType}\nResponse Text: ${responseText}`);
+                        }
+                    }
                 } else {
-                    const errorData = await response.json();
-                    let errorMessage = errorData.message || 'Unknown error occurred';
-                    
-                    if (errorData.suggestion) {
-                        errorMessage += `\n\n💡 Suggestion: ${errorData.suggestion}`;
+                    // Handle error response
+                    let responseText = '';
+                    try {
+                        responseText = await response.text();
+                    } catch (textError) {
+                        responseText = 'Could not read response';
                     }
                     
-                    showStatus(`❌ Error: ${errorMessage}`, 'error');
+                    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                    try {
+                        const errorData = JSON.parse(responseText);
+                        errorMessage = errorData.message || errorMessage;
+                        if (errorData.suggestion) {
+                            errorMessage += `\n\n💡 Suggestion: ${errorData.suggestion}`;
+                        }
+                        showDebugInfo(`Error Response: ${JSON.stringify(errorData, null, 2)}`);
+                    } catch (parseError) {
+                        errorMessage += `\n\nResponse: ${responseText}`;
+                        showDebugInfo(`Error Status: ${response.status}\nResponse Text: ${responseText}\nParse Error: ${parseError.message}`);
+                    }
+                    
+                    showStatus(`❌ ${errorMessage}`, 'error');
                 }
             } catch (error) {
-                showStatus(`❌ Error: ${error.message}`, 'error');
                 console.error('PDF generation error:', error);
+                showStatus(`❌ Error: ${error.message}`, 'error');
+                showDebugInfo(`Generation Error: ${error.message}\nStack: ${error.stack}`);
             } finally {
                 showProgress(false);
             }

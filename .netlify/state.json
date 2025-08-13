@@ -1,0 +1,20 @@
+{
+	"geolocation": {
+		"data": {
+			"city": "Ahmedabad",
+			"country": {
+				"code": "IN",
+				"name": "India"
+			},
+			"subdivision": {
+				"code": "GJ",
+				"name": "Gujarat"
+			},
+			"timezone": "Asia/Kolkata",
+			"latitude": 23.0276,
+			"longitude": 72.5871,
+			"postalCode": "380001"
+		},
+		"timestamp": 1755098422569
+	}
+}
