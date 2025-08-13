@@ -1,0 +1,19 @@
+[build]
+  functions = "functions"
+
+[dev]
+  port = 8888
+  functionsPort = 9999
+
+[functions]
+  directory = "functions"
+
+[functions."generate-pdf"]
+  timeout = 300
+  memory = 3008
+  included_files = ["node_modules/@sparticuz/chromium/**"]
+
+[functions."generate-pdf-simple"]
+  timeout = 300
+  memory = 3008
+  included_files = ["node_modules/@sparticuz/chromium/**"]

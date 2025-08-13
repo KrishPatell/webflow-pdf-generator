@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Generation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-button {
+            background: #007cba;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 20px 0;
+        }
+        .test-button:hover {
+            background: #005a87;
+        }
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .instructions {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Generation Function Test</h1>
+    
+    <div class="instructions">
+        <h3>How to test:</h3>
+        <ol>
+            <li>Start the local server: <code>npm run dev</code></li>
+            <li>Enter a blog post URL below</li>
+            <li>Click "Generate PDF" to test the function</li>
+            <li>The PDF should download automatically</li>
+        </ol>
+    </div>
+
+    <div>
+        <label for="urlInput">Blog Post URL:</label>
+        <input 
+            type="url" 
+            id="urlInput" 
+            class="url-input"
+            placeholder="https://tiger-loans.webflow.io/post/refinancing-a-rental-property?loid=1848572"
+            value="https://tiger-loans.webflow.io/post/refinancing-a-rental-property?loid=1848572"
+        >
+    </div>
+
+    <button class="test-button" onclick="generatePDF()">Generate PDF</button>
+
+    <div id="status"></div>
+
+    <script>
+        async function generatePDF() {
+            const urlInput = document.getElementById('urlInput');
+            const statusDiv = document.getElementById('status');
+            const targetUrl = urlInput.value.trim();
+
+            if (!targetUrl) {
+                statusDiv.innerHTML = '<p style="color: red;">Please enter a valid URL</p>';
+                return;
+            }
+
+            try {
+                statusDiv.innerHTML = '<p style="color: blue;">Generating PDF... Please wait...</p>';
+                
+                // Call the Netlify function
+                const response = await fetch(`/.netlify/functions/generate-pdf?target=${encodeURIComponent(targetUrl)}`);
+                
+                if (response.ok) {
+                    // Get the PDF blob
+                    const pdfBlob = await response.blob();
+                    
+                    // Create download link
+                    const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = 'blog-post.pdf';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(downloadUrl);
+                    
+                    statusDiv.innerHTML = '<p style="color: green;">PDF generated successfully! Download started.</p>';
+                } else {
+                    const errorData = await response.json();
+                    statusDiv.innerHTML = `<p style="color: red;">Error: ${errorData.message || 'Unknown error occurred'}</p>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Allow Enter key to trigger PDF generation
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                generatePDF();
+            }
+        });
+    </script>
+</body>
+</html>
